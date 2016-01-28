@@ -32,7 +32,8 @@ class Movie:
     phim_i0 = phim - self.phim0
     phim_i0r,bg = phplot.sub_ref(phim_i0,self.REFREGION)
     self.bg = self.a * bg + (1. - self.a)*self.bg
-    self.implt.set_data(phim_i0)
+
+    self.implt.set_data(phim_i0r)
     self.fig.suptitle(FRAMEFILE[-8:-4])
 
 

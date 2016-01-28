@@ -7,7 +7,10 @@ import numpy as np
 
 def imageplot(data,dataextent=None,datalim=None):
   if dataextent is None:
-    dataextent = [0,1,0,1]
+    nx,ny = data.shape
+    nmax = max(nx,ny)
+    ex,ey = float(nx)/nmax,float(ny)/nmax
+    dataextent = [0,ey,0,ex]
   if datalim is None:
     iplt = plt.imshow(data,cmap=plt.cm.gray,extent=dataextent)
   else:
@@ -27,8 +30,17 @@ def datashow(*data):
   dataplot(*data)
   plt.show()
 
-def dB_data(data):
-  return np.log1p(np.abs(np.fft.fftshift(data)))
+# show dB data
+def dBshow(shifteddata,SHIFT=True):
+  imageshow(dB_data(shifteddata,SHIFT))
+
+# convert to decibels (also shifts data to look symmetric about the middle of frame)
+# useful for fourier data
+def dB_data(data,SHIFT=True):
+  if SHIFT:
+    return np.log1p(np.abs(np.fft.fftshift(data)))
+  else:
+    return np.log1p(np.abs(data))
 
 def spectrogram(data):
   return dB_data(np.fft.fft2(data))

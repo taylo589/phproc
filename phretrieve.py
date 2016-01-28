@@ -112,7 +112,8 @@ def get_disparate_peaks(data,a=1.):
   x_max,y_max = np.where(data == datamax)
   # minimum distance threshold for peak
   nx,ny = np.shape(data)
-  m = nx*0.1
+  n = np.sqrt(nx*ny)
+  m = n*0.3
 
   while True:
     thresh = datamax*a
@@ -219,17 +220,19 @@ def hilbert_transform(f_data,direction='x'):
   # return the filtered spectral data
   return h_data
 
-def gaussian_mult(data,k,s=0.05):
+def f_gaussian(data,k,s=0.05):
   nx,ny = np.shape(data)
   N = max([nx,ny])
   KY,KX = np.meshgrid(np.arange(nx),np.arange(ny),sparse=False,indexing='xy')
   K = (nx-k[0])+nx/2,ny/2-k[1]
 #  print K
-  data = np.fft.fftshift(data)
+#  data = np.fft.fftshift(data)
   #g = 1e6*np.exp(-((KX-K[0])**2+(KY-K[1])**2)/(2*(s*N)**2))
   #return np.fft.ifftshift(data+g)
   g = np.exp(-((KX-K[0])**2+(KY-K[1])**2)/(2*(s*N/2)**2))
-  return np.fft.ifftshift(data*g)
+#  phplot.imageshow(phplot.dB_data(np.fft.ifftshift(g)))
+#  phplot.imageshow(np.abs(np.fft.ifft2(np.fft.ifftshift(g))))
+  return np.fft.ifftshift(g)
 
 
 # produces a wave with X and Y mesh data
@@ -289,13 +292,13 @@ def wave_retrieval(data,r_data=None,filt=None,STEPS=False,s=0.1,ARGS=False):
   # filter k-space with a gaussian around data of interest
   if filt is None:
     try:
-      gf_data = gaussian_mult(f_data,K)
+      gf_data = f_gaussian(f_data,K)*f_data
     except UnboundLocalError:
       K = get_wave(f_data)
     finally:
-      gf_data = gaussian_mult(f_data,K)
+      gf_data = f_gaussian(f_data,K)*f_data
       filt = np.ones(f_data.shape)
-      filt = gaussian_mult(filt,K)
+      filt = f_gaussian(filt,K)*filt
 #      band = get_band(data,K)
 #      filt = f_bandpass(filt,band)
 #      filt = hilbert_transform(filt,'x')
@@ -327,7 +330,7 @@ def hilbert_retrieval(data,plane=None,filt=None,STEPS=False,direction='x',ARGS=F
   # fourier transform data and filter
   window_f = np.hanning
   w2 = np.sqrt(np.outer(window_f(data.shape[0]),window_f(data.shape[1])))
-  f_data = np.fft.fft2(data*w2)
+  f_data = np.fft.fft2(data)
   if filt is None:
     band = get_band(f_data)
     filt_f_data = f_bandpass(f_data,band)
@@ -359,3 +362,153 @@ def hilbert_retrieval(data,plane=None,filt=None,STEPS=False,direction='x',ARGS=F
   if ARGS:
     return -phase,plane,filt
   return -phase
+
+def plane_wave(X,Y,kx,ky):
+  return np.exp(-1j*2*np.pi*((X*kx)+(Y*ky)))
+  
+def gaussian(X,Y,mu_x,mu_y,sigma_x,sigma_y=None):
+  if sigma_y is None:
+    sigma_y = sigma_x
+  return np.exp(-((X-mu_x)**2)/(2*sigma_x**2)-((Y-mu_y)**2)/(2*sigma_y**2))
+  
+def find_carrier(data,n=None):
+  if n is None:
+    nx,ny = data.shape[0]-1,data.shape[1]
+#  window_f = np.hamming
+#  w2 = np.sqrt(np.outer(window_f(data.shape[0]),window_f(data.shape[1])))
+  f_data = np.fft.rfft2(data)
+  Kx,Ky = np.fft.rfftfreq(nx),np.fft.fftfreq(ny)
+  print f_data.shape
+  ik = get_disparate_peaks(f_data)
+#  print ik
+#  f_data[ik] = 1e10
+#  phplot.dBshow(np.fft.fftshift(f_data,0),SHIFT=False)
+  kx,ky = Kx[ik[1]],Ky[ik[0]]
+#  print kx,ky
+  return kx,ky
+
+# find a gaussian centered on the wave
+def find_gaussian(data,kx,ky):
+  # check out a gaussian in the area
+  Kx,Ky = np.fft.rfftfreq(data.shape[0]-1),np.fft.fftfreq(data.shape[1])
+  sigma = 20. * np.max(Ky)/256
+  KX,KY = np.meshgrid(Kx,Ky)
+  G0 = gaussian(KX,KY,kx,ky,sigma)
+  # combine gaussian filter with the rest of the space
+  G = np.fft.ifftshift(\
+    np.concatenate(\
+    (np.zeros(G0.shape),\
+    np.fft.fftshift(gaussian(KX,KY,kx,ky,sigma),0)),1))
+  return G
+
+def wave_retrieval_2(data,ARGS):
+  kx,ky = find_carrier(data)
+  G = find_gaussian(data,kx,ky)
+  I = np.fft.fft2(data)*G
+#  phplot.dBshow(I)
+  nx,ny = data.shape
+  X,Y = np.meshgrid(np.arange(nx),np.arange(ny))
+  o = np.fft.ifft2(I)*plane_wave(X,Y,kx,ky)
+  return np.arctan2(o.imag,o.real)
+
+def compressed_wave_retrieval(data,ARGS):
+  window_f = np.hamming
+
+  kx,ky = find_carrier(data)
+  nx,ny = data.shape
+  X,Y = np.meshgrid(np.arange(nx),np.arange(ny))
+
+  G = find_gaussian(data,kx,ky)
+#  print float(ik[1])/256
+#  print np.around(float(ik[1])/ax) - float(ik[1])/ax
+  a = [11./256.,12./256.]
+  G_kernel = ndi.zoom(G,a)
+#  phplot.dBshow(G_kernel)
+  g_kernel = np.fft.ifft2(G_kernel)
+  wzoom = np.sqrt(np.outer(window_f(g_kernel.shape[0]),window_f(g_kernel.shape[1])))
+  g_kernel *= wzoom
+#  print g_kernel.shape
+#  phplot.imageshow(g_kernel.real)
+#  nx,ny = data.shape
+#  X,Y = np.meshgrid(np.arange(nx),np.arange(ny))
+  i = (ndi.convolve(data,g_kernel.real) + 1j*ndi.convolve(data,g_kernel.imag))
+#  phplot.dBshow(np.fft.fft2(i))
+  r = plane_wave(X,Y,kx,ky)
+  o = i*r
+  ph = np.arctan2(o.imag,o.real)
+#  phplot.imageshow(p)
+  return ph
+
+# another method
+def holographic_retrieval(data,ARGS):
+  # find a window for the fft
+  window_f = np.hamming
+  w2 = np.sqrt(np.outer(window_f(data.shape[0]),window_f(data.shape[1])))
+  # get the wave-vector
+  kx,ky = find_carrier(data)
+  Kx,Ky = np.fft.fftfreq(data.shape[0]),np.fft.fftfreq(data.shape[1])
+  KX,KY = np.meshgrid(Kx,Ky)
+  s2 = np.sqrt(kx**2 + ky**2)/4.
+  G2 = gaussian(KX,KY,0,0,s2)
+#  phplot.dBshow(G2)
+
+  nx,ny = data.shape
+  X,Y = np.meshgrid(np.arange(nx),np.arange(ny))
+  r = plane_wave(X,Y,kx,ky)
+  i2 = data*r
+  I2 = np.fft.fft2(w2*i2)
+  O2 = I2 * G2
+  o2 = np.fft.ifft2(O2)
+  p2 = np.arctan2(o2.imag,o2.real)
+#  phplot.dBshow(I2)
+#  phplot.dBshow(O2)
+#  phplot.imageshow(p2)
+  return p2
+
+# convolution form of the method
+def compressed_holographic_retrieval(data,ARGS):
+  window_f = np.hamming
+  kx,ky = find_carrier(data)
+  Kx,Ky = np.fft.fftfreq(data.shape[0]),np.fft.fftfreq(data.shape[1])
+  KX,KY = np.meshgrid(Kx,Ky)
+  s2 = np.sqrt(kx**2 + ky**2)/4.
+  G2 = gaussian(KX,KY,0,0,s2)
+
+  nx,ny = data.shape
+  X,Y = np.meshgrid(np.arange(nx),np.arange(ny))
+  r = plane_wave(X,Y,kx,ky)
+  i3 = data*r
+
+#  print np.around(float(s2*256)/ax) - float(s2*256)/ax
+  a3 = 14./256
+  G3_kernel = ndi.zoom(G2,a3)
+#  phplot.dBshow(G3_kernel)
+  g3_kernel = np.fft.ifft2(G3_kernel)
+  w3zoom = np.sqrt(np.outer(window_f(g3_kernel.shape[0]),window_f(g3_kernel.shape[1])))
+  g3_kernel *= w3zoom
+  o3 = (ndi.convolve(i3.real,g3_kernel.real) -\
+        ndi.convolve(i3.imag,g3_kernel.imag) +\
+        1j*ndi.convolve(i3.real,g3_kernel.imag) +\
+        1j*ndi.convolve(i3.imag,g3_kernel.real))
+  p3 = np.arctan2(o3.imag,o3.real)
+#  phplot.imageshow(p3)
+  return p3
+
+# generic testing method for phase-retrieval
+def test_retrieval(data,r=None,s=None,ARGS=False):
+  if ARGS or r is None or s is None:
+    kx,ky = find_carrier(data)
+    nx,ny = data.shape
+    X,Y = np.meshgrid(np.arange(nx),np.arange(ny))
+    r = plane_wave(X,Y,kx,ky)
+    s = 1./(1.8*np.sqrt((kx)**2+(ky)**2))
+  i3 = data*r
+  o3 = ndi.gaussian_filter(i3.real,s) + 1j*ndi.gaussian_filter(i3.imag,s)
+  #phplot.dBshow(np.fft.fft2(ndi.gaussian_filter(data,s)))
+  p3 = np.arctan2(o3.imag,o3.real)
+  if not ARGS:
+#    return unwrap_phase(p3)
+    return p3
+  else:
+#    return unwrap_phase(p3),r,s
+    return p3,r,s

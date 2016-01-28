@@ -46,7 +46,10 @@ class Frameset(object):
       self.rdata = self.JSONload(FRAMEPATH + "data.json")
     except IOError as ioe:
       print ioe
-      print DATAERROR_STR
+      print self.DATAERROR_STR
+    except ValueError as ve:
+      print ve
+      print self.DATAERROR_STR
     finally:
       self.dimension = FRAMESIZE # meters (approximate - check calibration frame)
 

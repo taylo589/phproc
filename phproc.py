@@ -19,6 +19,7 @@ import glob
 from phclasses import *
 import phretrieve
 import phmovie
+import phmodel
 
 
 def walk_path(PATH):
@@ -27,9 +28,8 @@ def walk_path(PATH):
   for FOLDER in FOLDERS:
     print "[{0}] \"{1}\"".format(i,FOLDER.split('/')[-2])
     i += 1
-#  selection = raw_input(\
-#  "Select a number. \'q\' to exit: ")
-  selection = '103'
+  selection = raw_input(\
+  "Select a number. \'q\' to exit: ")
   try:
     return FOLDERS[int(selection)]
   except ValueError as ve:
@@ -47,11 +47,12 @@ def ph_retrieve(Dataset):
 #      raw_input("Pick a frame from {0} to {1}: ".format(sFrames[0],sFrames[1]))))
   iframe = int(float('0'))
   rFrame = Frame(Dataset.FrameList[iframe])
-  data_n = phretrieve.subtract_field(rFrame.data,Dataset.SampleFrame.data)
+#  data_n = phretrieve.subtract_field(rFrame.data,Dataset.SampleFrame.data)
   rFrame.set_phase(Dataset.retrieval_method)
   phplt = phplot.imageshow(rFrame.phase)
 #  phdata2 = rFrame.get_phase(PH_RETRIEVAL['h'])
 #  phplt = phplot.imageshow(phdata2)
+#  tfield = phmodel.temperature_field()
   return True
 
 def ph_steps(Dataset):
@@ -60,13 +61,14 @@ def ph_steps(Dataset):
 
 def ph_movie(Dataset):
   movie = phmovie.Movie(Dataset)
-  movie.CLIM = [-1.,1.]
+  movie.CLIM = Defaults.clim
+  movie.REFREGION = Defaults.refregion
   movie.play()
   return True
 
 def ph_temporal(Dataset):
-  REFREGION = (slice(-30,-20),slice(-30,-20))
-  INTEGRATE = (slice(5,-5),slice(150,152))
+  REFREGION = Defaults.refregion
+  INTEGRATE = Defaults.integrate
   ref = np.zeros(len(Dataset.FrameList))
   rel = np.copy(ref)
 
@@ -118,8 +120,7 @@ def main_loop(TESTPATH,SAMPLEPATH=None):
       print "[{0}] - {1}".format(key,OPERATION_DESC[key])
 
     # all operations should return True except the quit operation (confusing I know)
-#    OP = raw_input("Selection [q]: ")
-    OP = 'm'
+    OP = raw_input("Selection [q]: ")
     if OP not in OPERATIONS.keys():
       OP = 'q'
 
@@ -128,8 +129,7 @@ def main_loop(TESTPATH,SAMPLEPATH=None):
     for key in PH_RETRIEVAL:
       print "[{0}] - {1}".format(key,PH_RETRIEVAL_DESC[key])
     # get the selection (defaults to hilbert retrieval)
-#    PH = raw_input("Selection [h]: ")
-    PH = 'w'
+    PH = raw_input("Selection [h]: ")
     if PH not in PH_RETRIEVAL.keys():
       PH = 'h'
 
@@ -154,11 +154,17 @@ def main_loop(TESTPATH,SAMPLEPATH=None):
 PH_RETRIEVAL = {
     'h':phretrieve.hilbert_retrieval,
     'w':phretrieve.wave_retrieval,
-    'c':phretrieve.correlation_retrieval}
+    'c':phretrieve.correlation_retrieval,
+    'w2':phretrieve.wave_retrieval_2,
+    'cw':phretrieve.compressed_wave_retrieval,
+    'ho':phretrieve.holographic_retrieval,
+    'cho':phretrieve.compressed_holographic_retrieval,
+    't':phretrieve.test_retrieval}
 PH_RETRIEVAL_DESC = {
     'h':'Hilbert-transform phase retrieval method',
     'w':'Gaussian filter over k-region of choice',
-    'c':'Correlation method of retrieval'}
+    'c':'Correlation method of retrieval',
+    't':'Test method of retrieval'}
 
 # operations as python dictionary objects
 # one dictionary contains function references, 
@@ -176,28 +182,45 @@ OPERATION_DESC = {
     't':'Plotting and analysis of temporal data',
     'q':'Quits the program'}
 
+# a place for all the default settings (for running in non-interactive test mode)
+class Defaults(object):
+  # operation
+  o = 'm'
+  # retrieval method
+  r = 't'
+  # default test folder
+  pathext = "res_v_time_Vconst_20000_mV_20151015_152846/"
+  # imshow data limits
+  clim = [-1.,1.]
+  # frame reference region
+  refregion = (slice(-30,-20),slice(-30,-20))
+  # region to integrate
+  integrate = (slice(5,-5),slice(150,152))
 
 if __name__== "__main__":
+  INTERACTIVE = False
 
   print "Welcome to the phase post-processing module designed by Luke Taylor."
   #HOMEPATH = os.environ['HOME']
-#  HOMEPATH = os.path.expanduser("~")
-#  print "Below is your home directory, right?\n{0}".format(HOMEPATH)
-#  if os.path.isdir(HOMEPATH + "/taylo589_2"):
-#    TAYLO589 = "/taylo589_2"
-#  elif os.path.isdir(HOMEPATH + "/taylo589orca"):
-#    TAYLO589 = "/taylo589orca"
-#  elif os.path.isdir(HOMEPATH + "/taylo589spideroak"):
-#    TAYLO589 = "/taylo589spideroak"
-#  else:
-#    print "ERROR: main path not found. make sure either ~/taylo589_2 or ~/taylo589orca exist and contain desired datasets."
-  HOMEPATH = '../'
-  TAYLO589 = ''
+  HOMEPATH = os.path.expanduser("~")
+  print "Below is your home directory, right?\n{0}".format(HOMEPATH)
+  if os.path.isdir(HOMEPATH + "/taylo589_2"):
+    TAYLO589 = "/taylo589_2"
+  elif os.path.isdir(HOMEPATH + "/taylo589orca"):
+    TAYLO589 = "/taylo589orca"
+  elif os.path.isdir(HOMEPATH + "/taylo589spideroak"):
+    TAYLO589 = "/taylo589spideroak"
+  else:
+    print "ERROR: main path not found. make sure either ~/taylo589_2 or ~/taylo589orca exist and contain desired datasets."
   
-#  TESTPATH = HOMEPATH + TAYLO589 + "/python/IDTCam/test/testdata/"
-#  SAMPLEPATH = HOMEPATH + TAYLO589 + "/python/IDTCam/test/testdata/reference_field/reffield.tif"
-  TESTPATH = HOMEPATH + 'testdata'
-  SAMPLEPATH = HOMEPATH + 'testdata/reffield.tif'
-  # go to the main program loop
-  main_loop(TESTPATH,SAMPLEPATH)
+  TESTPATH = HOMEPATH + TAYLO589 + "/python/IDTCam/test/testdata/"
+  SAMPLEPATH = HOMEPATH + TAYLO589 + "/python/IDTCam/test/testdata/reference_field/reffield.tif"
+  if INTERACTIVE:
+    # go to the main program loop
+    main_loop(TESTPATH,SAMPLEPATH)
+  else:
+    Dataset = Frameset(TESTPATH + Defaults.pathext,SAMPLEPATH=SAMPLEPATH,\
+        retrieval_method=PH_RETRIEVAL[Defaults.r])
+    OPERATIONS[Defaults.o](Dataset)
+    
   print "EOL"
