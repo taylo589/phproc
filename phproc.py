@@ -203,18 +203,29 @@ if __name__== "__main__":
   print "Welcome to the phase post-processing module designed by Luke Taylor."
   #HOMEPATH = os.environ['HOME']
   HOMEPATH = os.path.expanduser("~")
+  WD = os.path.realpath(__file__)
   print "Below is your home directory, right?\n{0}".format(HOMEPATH)
   if os.path.isdir(HOMEPATH + "/taylo589_2"):
     TAYLO589 = "/taylo589_2"
+    TESTPATH = HOMEPATH + TAYLO589 + "/python/IDTCam/test/testdata/"
+    SAMPLEPATH = HOMEPATH + TAYLO589 + \
+        "/python/IDTCam/test/testdata/reference_field/reffield.tif"
   elif os.path.isdir(HOMEPATH + "/taylo589orca"):
     TAYLO589 = "/taylo589orca"
+    TESTPATH = HOMEPATH + TAYLO589 + "/python/IDTCam/test/testdata/"
+    SAMPLEPATH = HOMEPATH + TAYLO589 + \
+        "/python/IDTCam/test/testdata/reference_field/reffield.tif"
   elif os.path.isdir(HOMEPATH + "/taylo589spideroak"):
     TAYLO589 = "/taylo589spideroak"
+    TESTPATH = HOMEPATH + TAYLO589 + "/python/IDTCam/test/testdata/"
+    SAMPLEPATH = HOMEPATH + TAYLO589 + \
+        "/python/IDTCam/test/testdata/reference_field/reffield.tif"
+  elif os.path.isdir(WD + "/testdata"):
+    TESTPATH = WD + "/testdata/"
+    SAMPLEPATH = WD + "/testdata/reffield.tif"
   else:
     print "ERROR: main path not found. make sure either ~/taylo589_2 or ~/taylo589orca exist and contain desired datasets."
   
-  TESTPATH = HOMEPATH + TAYLO589 + "/python/IDTCam/test/testdata/"
-  SAMPLEPATH = HOMEPATH + TAYLO589 + "/python/IDTCam/test/testdata/reference_field/reffield.tif"
   if INTERACTIVE:
     # go to the main program loop
     main_loop(TESTPATH,SAMPLEPATH)
